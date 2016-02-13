@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<style>
+body { 
+  color: #666; 
+  background: #000000; 
+  font: normal 10px "Helvetica Neue", Helvetica, sans-serif; 
+  margin: 2em; 
+}
+#map {
+  border:2px solid #000;
+  background: #000000;
+  width:960px;
+  height:550px;
+}
+h1{
+  font: normal 22px "Helvetica Neue", Helvetica, sans-serif; 
+}
+p{
+  font: normal 10px "Helvetica Neue", Helvetica, sans-serif; 
+}
+#wrapper {
+    width: 760px;
+    border: 1px solid black;
+}
+#title {
+  float: left;
+}
+#chems {
+  width: 200px;
+  float: right;
+}
+
+</style>
+
+  <head>
+    <title>OpenAQ city bubble map</title>
+    <meta charset="utf-8">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  </head>
+
+<body>
+  <div id="wrapper">
+  <div id="title"><h1>OpenAQ - Air Quality Bubble Map Visualization</h1></div>
+  <div id="chems">
+  <form onchange="draw()">
+      <fieldset style="width:300px">
+        <legend><p>Pollutants</p></legend>
+       <p>           
+          <input type = "radio"
+                 name = "Chemical"
+                 id = "PM25"
+                 value = "pm25"
+                 checked = "checked" />
+          <label for = "PM25">PM2.5</label>
+          
+          <input type = "radio"
+                 name = "Chemical"
+                 id = "PM10"
+                 value = "pm10" />
+          <label for = "PM10">PM10</label>
+ 
+          <input type = "radio"
+                 name = "Chemical"
+                 id = "o3"
+                 value = "o3" />
+          <label for = "Ozone">Ozone</label>
+
+          <input type = "radio"
+                 name = "Chemical"
+                 id = "so2"
+                 value = "so2" />
+          <label for = "SO2">SO2</label>
+
+          <input type = "radio"
+                 name = "Chemical"
+                 id = "no2"
+                 value = "no2" />
+          <label for = "NO2">NO2</label>
+
+          <input type = "radio"
+                 name = "Chemical"
+                 id = "co"
+                 value = "co" />
+          <label for = "CO">CO</label>
+        </p>       
+      </fieldset>     
+    </form>
+  </div>
+</div>
+
+  <div id="map">
+
+
+
+
+  </div>
+
+
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script src="http://d3js.org/topojson.v1.min.js"></script>
+  <!-- I recommend you host this file on your own, since this will change without warning -->
+  <script src="http://datamaps.github.io/scripts/datamaps.world.min.js?v=1"></script>
+  <div id="container1" style="position: relative; width: 100%; max-height: 600px;"></div>
+ 
+  
+     <script>
+      var width = 500;
+      var height = 1200;
+      var zm;
+      var zs = 1;
+       //basic map config with custom fills, mercator projection
+      var map = new Datamap({
+        scope: 'world',
+        element: document.getElementById('map'),
+        projection: 'mercator',
+        height: 550,
+        width: 960,
+        geographyConfig: {
+          popupOnHover: false,
+          highlightOnHover: false
+        },
+        fills: {
+          defaultFill: '#666699',
+          pm25: '#e31a1c',
+          pm10: '#0570b0',
+          o3:   '#41ae76',
+          so2:  '#fc4e2a',
+          no2:  '#e7298a',
+          co:   '#00441b' 
+
+        },
+        done: function(datamap) {
+           datamap.svg.call(d3.behavior.zoom().on("zoom", redraw));
+
+           function redraw() {
+                datamap.svg.selectAll("g").attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+                //zm = d3.event.scale;
+                //zs = zm;
+                console.log(zs)
+                //draw()
+           }
+        }
+      })
+
+      draw();
+
+      function draw(){
+
+      d3.json('https://api.openaq.org/v1/latest?has_geo=true', function(error, json){
+      
+        var dataarray = json.results
+        var chemselect = document.querySelector('input[name="Chemical"]:checked').value;
+        var scale = 1;
+        var unit;
+        var chemname;
+
+        if(chemselect == "pm25") {
+          scale = 3
+          unit = "µg/m^3"
+          chemname = "PM 2.5"
+        } else if (chemselect == "pm10") {
+          scale = 3
+          unit = "µg/m^3"
+          chemname = "PM 10"
+        } else if (chemselect == "o3") {
+          scale = 3
+          unit = "ppm"
+          chemname = "O3"
+        } else if (chemselect == "so2") {
+          scale = 4
+          unit = "ppm"
+          chemname = "SO2"
+        } else if (chemselect == "no2") {
+          scale = 3
+          unit == "ppm"
+          chemname = "NO2"
+        } else if (chemselect == "co") {
+          scale = 2
+          unit = "ppm"
+          chemname = "CO"
+        }
+
+        var bubblearray = []
+        for (var i = 0; i < dataarray.length; i++) {
+          if(dataarray[i].hasOwnProperty('coordinates')){
+            for(var j = 0; j < dataarray[i].measurements.length; j++){
+              if(dataarray[i].measurements[j].parameter == chemselect && dataarray[i].measurements[j].value > 0){
+                console.log("go!")
+                bubblearray.push({name: dataarray[i].city, latitude: dataarray[i].coordinates.latitude, longitude: dataarray[i].coordinates.longitude, radius: Math.log(dataarray[i].measurements[j].value + 1) * scale, fillKey: chemselect, value: dataarray[i].measurements[j].value})
+              }
+            }
+          }
+        }
+
+       //bubbles, custom popup on hover template
+         map.bubbles(bubblearray, {
+           popupTemplate: function(geo, data) {
+             return "<div class='hoverinfo'>" + data.name + "</br>" + chemname + ": " + data.value + unit + "</div>";
+           }
+         });
+
+      })
+
+    return;
+    }
+     </script>
+</body>
